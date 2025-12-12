@@ -187,6 +187,51 @@
       color: #1f2937;
       line-height: 1.6;
     }
+    .game-section {
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      border-radius: 1.25rem;
+      padding: clamp(1.5rem, 3vw, 2.5rem);
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.05);
+    }
+    .game-section h2 {
+      margin-top: 0;
+      margin-bottom: 0.75rem;
+    }
+    .game-board {
+      position: relative;
+      margin-bottom: 1rem;
+    }
+    .game-board canvas {
+      width: 100%;
+      max-width: 720px;
+      border-radius: 1rem;
+      display: block;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.25);
+    }
+    .game-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+    .game-controls button {
+      padding: 0.85rem 1.5rem;
+      border-radius: 999px;
+      border: none;
+      background: #0ea5e9;
+      color: #f8fafc;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+    .game-controls button:hover {
+      transform: translateY(-1px);
+    }
+    .game-status {
+      font-size: 0.95rem;
+      color: #1f2937;
+      margin-left: auto;
+    }
     .tips-list {
       list-style: none;
       padding: 0;
@@ -292,6 +337,18 @@
       </div>
     </section>
 
+    <section id="game" class="game-section">
+      <h2>さるぼぼが白川郷を駆け抜ける</h2>
+      <p>スペースキーでジャンプしながら雪の合掌造りを避けて、どこまで走れるか挑戦しよう。</p>
+      <div class="game-board">
+        <canvas id="sarubobo-game" width="680" height="320"></canvas>
+      </div>
+      <div class="game-controls">
+        <button id="start-game">ゲームスタート</button>
+        <span class="game-status" id="game-status">スタートボタンで走り出すよ</span>
+      </div>
+    </section>
+
     <section id="gourmet">
       <h2>地元グルメで舌鼓</h2>
       <div class="grid feature-grid">
@@ -325,5 +382,184 @@
       <p>郷土の温かさと自然が出会う岐阜県。次の旅先にぜひ。</p>
     </footer>
   </main>
+  <script>
+    (function () {
+      const canvas = document.getElementById('sarubobo-game');
+      const ctx = canvas.getContext('2d');
+      const statusEl = document.getElementById('game-status');
+      const startBtn = document.getElementById('start-game');
+      const saru = {
+        x: 80,
+        y: canvas.height - 100,
+        width: 40,
+        height: 60,
+        dy: 0,
+        gravity: 0.85,
+        jumpForce: -15,
+        ground: canvas.height - 90,
+      };
+      let obstacles = [];
+      let frameCount = 0;
+      let score = 0;
+      let running = false;
+      let animationId;
+
+      function drawBackground() {
+        const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        grad.addColorStop(0, '#dbeafe');
+        grad.addColorStop(1, '#e0f2fe');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#cbd5f5';
+        ctx.beginPath();
+        ctx.moveTo(0, 220);
+        ctx.lineTo(120, 120);
+        ctx.lineTo(240, 220);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(200, 220);
+        ctx.lineTo(360, 110);
+        ctx.lineTo(520, 220);
+        ctx.fill();
+        ctx.fillStyle = '#fddcf4';
+        ctx.beginPath();
+        ctx.moveTo(120, 150);
+        ctx.lineTo(140, 140);
+        ctx.lineTo(160, 150);
+        ctx.fill();
+
+        ctx.fillStyle = '#fef3c7';
+        ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
+        ctx.fillStyle = '#e11d48';
+        ctx.fillRect(0, canvas.height - 60, canvas.width, 10);
+      }
+
+      function drawSarubobo() {
+        const headX = saru.x + saru.width / 2;
+        const headY = saru.y + saru.height / 3;
+        ctx.fillStyle = '#fbf2e3';
+        ctx.beginPath();
+        ctx.arc(headX, headY, saru.width / 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#dc2626';
+        ctx.fillRect(saru.x, saru.y + saru.height / 2, saru.width, saru.height / 2);
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(saru.x + 8, saru.y + saru.height / 6, 6, 6);
+        ctx.fillRect(saru.x + 26, saru.y + saru.height / 6, 6, 6);
+      }
+
+      function drawObstacles() {
+        obstacles.forEach((obs) => {
+          ctx.fillStyle = '#1d4ed8';
+          ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+          ctx.fillStyle = '#fef3c7';
+          ctx.beginPath();
+          ctx.moveTo(obs.x, obs.y);
+          ctx.lineTo(obs.x + obs.width / 2, obs.y - 12);
+          ctx.lineTo(obs.x + obs.width, obs.y);
+          ctx.fill();
+        });
+      }
+
+      function update() {
+        frameCount += 1;
+        drawBackground();
+        handleObstacles();
+        drawObstacles();
+        score = Math.floor(frameCount / 6);
+        ctx.fillStyle = '#0f172a';
+        ctx.font = '18px "Yu Gothic", sans-serif';
+        ctx.fillText(`スコア: ${score}`, 20, 30);
+        updateSarubobo();
+        drawSarubobo();
+        if (running) {
+          animationId = requestAnimationFrame(update);
+        }
+      }
+
+      function updateSarubobo() {
+        saru.dy += saru.gravity;
+        saru.y += saru.dy;
+        if (saru.y > saru.ground) {
+          saru.y = saru.ground;
+          saru.dy = 0;
+        }
+      }
+
+      function handleObstacles() {
+        if (frameCount % 90 === 0) {
+          const height = 40 + Math.random() * 50;
+          obstacles.push({
+            x: canvas.width,
+            y: canvas.height - 60 - height,
+            width: 40,
+            height,
+            speed: 3 + score / 200,
+          });
+        }
+        obstacles = obstacles.filter((obs) => {
+          obs.x -= obs.speed;
+          if (obs.x + obs.width < 0) {
+            return false;
+          }
+          if (checkCollision(obs)) {
+            endGame();
+            return false;
+          }
+          return true;
+        });
+      }
+
+      function checkCollision(obs) {
+        return (
+          saru.x < obs.x + obs.width &&
+          saru.x + saru.width > obs.x &&
+          saru.y + saru.height > obs.y
+        );
+      }
+
+      function jump() {
+        if (!running) {
+          return;
+        }
+        if (saru.y >= saru.ground) {
+          saru.dy = saru.jumpForce;
+        }
+      }
+
+      function resetGame() {
+        obstacles = [];
+        frameCount = 0;
+        score = 0;
+        saru.y = saru.ground;
+        saru.dy = 0;
+        running = true;
+        statusEl.textContent = 'スペースキーでジャンプ！';
+        cancelAnimationFrame(animationId);
+        update();
+      }
+
+      function endGame() {
+        running = false;
+        statusEl.textContent = `ゲームオーバー！スコア: ${score}`;
+        cancelAnimationFrame(animationId);
+      }
+
+      startBtn.addEventListener('click', resetGame);
+      window.addEventListener('keydown', (event) => {
+        if (event.code === 'Space') {
+          event.preventDefault();
+          jump();
+        }
+      });
+      drawBackground();
+      drawSarubobo();
+      ctx.fillStyle = '#0f172a';
+      ctx.font = '16px "Yu Gothic", sans-serif';
+      ctx.fillText('スタートボタンで走り始めよう', 20, 30);
+    })();
+  </script>
 </body>
 </html>
